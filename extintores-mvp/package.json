@@ -1,0 +1,19 @@
+{
+  "name": "sistema-extintores-mvp",
+  "version": "1.0.0",
+  "description": "MVP - Sistema Inteligente de Gestion de Extintores (Supabase)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node scripts/seed-supabase.js",
+    "seed:reset": "node scripts/seed-supabase.js --reset"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.19.0",
+    "qrcode": "^1.5.4"
+  }
+}

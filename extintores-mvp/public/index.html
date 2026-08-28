@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Sistema Inteligente de Gestión de Extintores</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+  <!-- ============ PANTALLA DE LOGIN ============ -->
+  <div id="view-login" class="login-screen">
+    <div class="login-card animate-pop-in">
+      <div class="login-brand">
+        <div class="login-logo"><i data-lucide="flame-kindling"></i></div>
+        <h1 class="text-lg font-bold text-white leading-tight">Sistema Inteligente<br/>de Extintores</h1>
+        <p class="text-xs text-slate-300 mt-1">Acceso para personal autorizado</p>
+      </div>
+      <form id="form-login" class="login-form">
+        <div>
+          <label class="login-label">Usuario</label>
+          <div class="login-input-wrap">
+            <i data-lucide="user" class="login-input-icon"></i>
+            <input id="login-username" type="text" autocomplete="username" placeholder="carlos" class="login-input" required />
+          </div>
+        </div>
+        <div>
+          <label class="login-label">Contraseña</label>
+          <div class="login-input-wrap">
+            <i data-lucide="lock" class="login-input-icon"></i>
+            <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" class="login-input" required />
+          </div>
+        </div>
+        <div id="login-error" class="hidden login-error"></div>
+        <button type="submit" id="btn-login" class="login-submit">
+          <i data-lucide="log-in" class="w-4 h-4"></i> Ingresar al sistema
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ APP PRINCIPAL ============ -->
+  <div id="view-app" class="hidden">
+
+    <header class="app-header no-print">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div class="header-logo shrink-0"><i data-lucide="flame-kindling"></i></div>
+          <div class="hidden md:block min-w-0">
+            <h1 class="text-base sm:text-lg font-bold leading-tight text-white truncate">Sistema Inteligente de Extintores</h1>
+            <p class="text-[11px] sm:text-xs text-slate-400 leading-tight">Gestión, inspección y cumplimiento normativo</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+          <nav class="hidden sm:flex gap-1 sm:gap-1.5" id="main-nav">
+            <button data-vista="dashboard" class="nav-btn top-nav-btn nav-btn-active"><i data-lucide="layout-dashboard" class="w-4 h-4"></i><span class="hidden lg:inline">Dashboard</span></button>
+            <button data-vista="inspeccion" class="nav-btn top-nav-btn"><i data-lucide="scan-line" class="w-4 h-4"></i><span class="hidden lg:inline">Inspección</span></button>
+            <button data-vista="auditoria" class="nav-btn top-nav-btn hidden"><i data-lucide="history" class="w-4 h-4"></i><span class="hidden lg:inline">Auditoría</span></button>
+            <button data-vista="admin" class="nav-btn top-nav-btn hidden"><i data-lucide="settings" class="w-4 h-4"></i><span class="hidden lg:inline">Administración</span></button>
+          </nav>
+
+          <div id="offline-indicator" class="conn-badge conn-online" title="Estado de conexión">
+            <i data-lucide="wifi" class="w-3.5 h-3.5"></i><span class="hidden md:inline">En línea</span>
+          </div>
+
+          <div class="relative">
+            <button id="btn-bell" class="bell-btn">
+              <i data-lucide="bell" class="w-[18px] h-[18px]"></i>
+              <span id="bell-badge" class="bell-badge hidden">0</span>
+            </button>
+            <div id="bell-dropdown" class="bell-dropdown hidden">
+              <div class="bell-dropdown-header">
+                <span>Notificaciones</span>
+                <i data-lucide="bell-ring" class="w-4 h-4 text-slate-400"></i>
+              </div>
+              <div id="bell-lista" class="bell-lista"></div>
+            </div>
+          </div>
+
+          <div class="user-chip">
+            <div id="user-avatar" class="user-avatar">--</div>
+            <div class="hidden md:block">
+              <p id="user-nombre" class="text-xs font-semibold text-white leading-tight">—</p>
+              <p id="user-rol" class="text-[10px] text-slate-400 leading-tight">—</p>
+            </div>
+            <button id="btn-logout" class="logout-btn" title="Cerrar sesión"><i data-lucide="log-out" class="w-4 h-4"></i></button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div id="offline-banner" class="hidden offline-banner no-print">
+      <i data-lucide="cloud-off" class="w-4 h-4"></i>
+      <span id="offline-banner-texto">Tienes inspecciones guardadas localmente.</span>
+      <button id="btn-sincronizar" class="offline-banner-btn"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sincronizar</button>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-24 sm:pb-6">
+
+      <!-- ============ VISTA DASHBOARD ============ -->
+      <section id="view-dashboard">
+        <div class="flex items-center justify-between mb-4 sm:mb-5 flex-wrap gap-3 animate-fade-up">
+          <div>
+            <h2 class="text-lg sm:text-2xl font-extrabold text-slate-900">Panel de Control</h2>
+            <p class="text-xs sm:text-sm text-slate-500">Estado general del inventario en tiempo real</p>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-exportar-pdf" class="hidden pdf-btn"><i data-lucide="file-down" class="w-4 h-4"></i><span class="hidden xs:inline">Exportar PDF</span></button>
+            <button id="refresh-dashboard" class="refresh-btn"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span class="hidden xs:inline">Actualizar</span></button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-4 mb-5 sm:mb-6">
+          <div class="kpi-card kpi-total animate-fade-up" style="animation-delay:.02s">
+            <div class="kpi-icon"><i data-lucide="package"></i></div>
+            <p class="kpi-label">Total equipos</p>
+            <p id="kpi-total" class="kpi-value">–</p>
+          </div>
+          <div class="kpi-card kpi-operativo animate-fade-up" style="animation-delay:.06s">
+            <div class="kpi-icon"><i data-lucide="shield-check"></i></div>
+            <p class="kpi-label">Operativos</p>
+            <p id="kpi-operativos" class="kpi-value">–</p>
+          </div>
+          <div class="kpi-card kpi-por-vencer animate-fade-up" style="animation-delay:.10s">
+            <div class="kpi-icon"><i data-lucide="clock-alert"></i></div>
+            <p class="kpi-label">Por vencer</p>
+            <p id="kpi-por-vencer" class="kpi-value">–</p>
+          </div>
+          <div class="kpi-card kpi-vencido animate-fade-up" style="animation-delay:.14s">
+            <div class="kpi-icon"><i data-lucide="octagon-x"></i></div>
+            <p class="kpi-label">Vencidos</p>
+            <p id="kpi-vencidos" class="kpi-value">–</p>
+          </div>
+          <div class="kpi-card kpi-mantenimiento animate-fade-up" style="animation-delay:.18s">
+            <div class="kpi-icon"><i data-lucide="wrench"></i></div>
+            <p class="kpi-label">Mantenimiento</p>
+            <p id="kpi-mantenimiento" class="kpi-value">–</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-5 sm:mb-6">
+          <div class="lg:col-span-1 panel-card animate-fade-up" style="animation-delay:.22s">
+            <h3 class="panel-title"><i data-lucide="pie-chart" class="w-4 h-4"></i> Distribución por estado</h3>
+            <canvas id="chart-estados" height="220"></canvas>
+          </div>
+          <div class="lg:col-span-2 panel-card animate-fade-up" style="animation-delay:.26s">
+            <h3 class="panel-title"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Equipos por ubicación</h3>
+            <canvas id="chart-ubicaciones" height="220"></canvas>
+          </div>
+        </div>
+
+        <div class="panel-card p-0 overflow-hidden animate-fade-up" style="animation-delay:.30s">
+          <div class="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+            <h3 class="panel-title mb-0"><i data-lucide="list-checks" class="w-4 h-4"></i> Inventario de extintores</h3>
+            <div class="relative w-full sm:w-auto">
+              <i data-lucide="search" class="filtro-icon"></i>
+              <input id="filtro-tabla" type="text" placeholder="Filtrar por código o ubicación..." class="filtro-input w-full sm:w-64" />
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+                <tr>
+                  <th class="text-left px-3 sm:px-5 py-3">Código</th>
+                  <th class="text-left px-3 sm:px-5 py-3">Agente</th>
+                  <th class="text-left px-3 sm:px-5 py-3 hidden sm:table-cell">Ubicación</th>
+                  <th class="text-left px-3 sm:px-5 py-3 hidden md:table-cell">Vencimiento</th>
+                  <th class="text-left px-3 sm:px-5 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-extintores" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+          <div id="tabla-loading" class="p-8 text-center text-slate-400 text-sm">Cargando inventario…</div>
+        </div>
+      </section>
+
+      <!-- ============ VISTA INSPECCIÓN RÁPIDA ============ -->
+      <section id="view-inspeccion" class="hidden">
+        <div class="mb-4 sm:mb-5 animate-fade-up">
+          <h2 class="text-lg sm:text-2xl font-extrabold text-slate-900">Inspección Rápida</h2>
+          <p class="text-xs sm:text-sm text-slate-500">Escanea el código QR real o ingrésalo manualmente</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
+          <div class="lg:col-span-2 panel-card animate-fade-up" style="animation-delay:.05s">
+            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Código QR / Código de equipo</label>
+            <div class="mt-2 flex gap-2">
+              <div class="relative flex-1">
+                <i data-lucide="qr-code" class="scan-icon"></i>
+                <input id="input-codigo" type="text" placeholder="Ej. EXT-001" autocomplete="off" class="scan-input" />
+              </div>
+              <button id="btn-buscar" class="btn-buscar"><i data-lucide="search" class="w-4 h-4"></i></button>
+            </div>
+            <button id="btn-abrir-camara" class="btn-camara"><i data-lucide="camera" class="w-4 h-4"></i> Escanear con cámara</button>
+            <p class="text-xs text-slate-400 mt-2 flex items-center gap-1.5"><i data-lucide="info" class="w-3.5 h-3.5 shrink-0"></i> Si no hay cámara disponible, puedes escribir el código manualmente.</p>
+
+            <div id="msg-error" class="hidden mt-4 msg-box msg-error"><i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i><span></span></div>
+            <div id="msg-offline-cache" class="hidden mt-4 msg-box msg-warning"><i data-lucide="cloud-off" class="w-4 h-4 shrink-0"></i><span>Modo offline: mostrando el último dato guardado en este dispositivo.</span></div>
+
+            <div class="mt-6">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Códigos de prueba</p>
+              <div class="flex flex-wrap gap-2">
+                <button class="chip-codigo">EXT-001</button>
+                <button class="chip-codigo">EXT-002</button>
+                <button class="chip-codigo">EXT-003</button>
+                <button class="chip-codigo">EXT-005</button>
+                <button class="chip-codigo">EXT-007</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg:col-span-3">
+            <div id="ficha-vacia" class="panel-card panel-dashed text-center text-slate-400 animate-fade-up" style="animation-delay:.1s">
+              <i data-lucide="scan-search" class="w-10 h-10 mx-auto mb-3 text-slate-300"></i>
+              <p class="font-medium">Ingresa o escanea un código para ver la ficha técnica del equipo</p>
+            </div>
+
+            <div id="ficha-loading" class="hidden panel-card text-center text-slate-400">
+              <div class="spinner mx-auto mb-3"></div>
+              <p>Consultando equipo…</p>
+            </div>
+
+            <div id="ficha-equipo" class="hidden panel-card animate-pop-in">
+              <div class="flex items-start justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div id="ficha-foto-wrap" class="ficha-foto-wrap">
+                    <img id="ficha-foto" class="hidden ficha-foto" alt="Foto del extintor" />
+                    <i id="ficha-foto-placeholder" data-lucide="flame-kindling" class="w-6 h-6 text-slate-300"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <p id="ficha-codigo" class="text-xl sm:text-2xl font-extrabold text-slate-900 font-mono truncate"></p>
+                    <p id="ficha-ubicacion" class="text-xs sm:text-sm text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate"></span></p>
+                  </div>
+                </div>
+                <span id="ficha-estado" class="badge"></span>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 text-sm">
+                <div><p class="text-slate-400 text-xs flex items-center gap-1"><i data-lucide="beaker" class="w-3 h-3"></i> Agente</p><p id="ficha-agente" class="font-semibold"></p></div>
+                <div><p class="text-slate-400 text-xs flex items-center gap-1"><i data-lucide="gauge" class="w-3 h-3"></i> Capacidad</p><p id="ficha-capacidad" class="font-semibold"></p></div>
+                <div><p class="text-slate-400 text-xs flex items-center gap-1"><i data-lucide="calendar-clock" class="w-3 h-3"></i> Vence</p><p id="ficha-vence" class="font-semibold"></p></div>
+                <div><p class="text-slate-400 text-xs flex items-center gap-1"><i data-lucide="flask-conical" class="w-3 h-3"></i> Prueba hidro.</p><p id="ficha-hidro" class="font-semibold"></p></div>
+              </div>
+
+              <hr class="my-5 border-slate-100" />
+
+              <h4 class="panel-title"><i data-lucide="clipboard-check" class="w-4 h-4"></i> Registrar inspección</h4>
+              <p class="text-xs text-slate-400 -mt-2 mb-3 flex items-center gap-1.5"><i data-lucide="user-check" class="w-3.5 h-3.5"></i> Inspector: <span id="ficha-inspector" class="font-semibold text-slate-600"></span></p>
+
+              <form id="form-inspeccion" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label class="check-item"><input type="checkbox" id="chk-presion" checked /><i data-lucide="gauge-circle" class="w-4 h-4"></i> Presión OK (manómetro en verde)</label>
+                  <label class="check-item"><input type="checkbox" id="chk-precinto" checked /><i data-lucide="shield" class="w-4 h-4"></i> Precinto de seguridad intacto</label>
+                  <label class="check-item"><input type="checkbox" id="chk-senaletica" checked /><i data-lucide="signpost" class="w-4 h-4"></i> Señalética visible y despejada</label>
+                </div>
+
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Observaciones</label>
+                  <textarea id="input-observaciones" rows="2" placeholder="Notas adicionales (opcional)" class="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-red-500/40 text-sm"></textarea>
+                </div>
+
+                <div>
+                  <div class="flex items-center justify-between">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1.5"><i data-lucide="signature" class="w-3.5 h-3.5"></i> Firma digital del inspector</label>
+                    <button type="button" id="btn-limpiar-firma" class="text-[11px] font-semibold text-red-500 hover:text-red-700">Limpiar</button>
+                  </div>
+                  <div class="firma-pad-wrap mt-1">
+                    <canvas id="firma-canvas" class="firma-canvas"></canvas>
+                  </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button type="submit" data-resultado="Aprobado" class="btn-aprobar"><i data-lucide="check-circle-2" class="w-4 h-4"></i> Aprobar inspección</button>
+                  <button type="submit" data-resultado="Rechazado" class="btn-rechazar"><i data-lucide="x-circle" class="w-4 h-4"></i> Rechazar equipo</button>
+                </div>
+              </form>
+            </div>
+
+            <div id="ficha-registrada" class="hidden panel-card panel-success text-center animate-pop-in">
+              <i data-lucide="party-popper" class="w-10 h-10 mx-auto mb-2 text-emerald-500"></i>
+              <p class="font-bold text-emerald-700 text-lg">Inspección registrada correctamente</p>
+              <p id="registrada-detalle" class="text-sm text-emerald-600 mt-1"></p>
+              <button id="btn-nueva-inspeccion" class="btn-nueva"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Inspeccionar otro equipo</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ VISTA AUDITORÍA ============ -->
+      <section id="view-auditoria" class="hidden">
+        <div class="mb-4 sm:mb-5 animate-fade-up">
+          <h2 class="text-lg sm:text-2xl font-extrabold text-slate-900">Auditoría del sistema</h2>
+          <p class="text-xs sm:text-sm text-slate-500">Registro inmutable de acciones — cumplimiento NOM-002-STPS / NFPA 10</p>
+        </div>
+        <div class="panel-card animate-fade-up" style="animation-delay:.05s">
+          <div id="auditoria-lista" class="divide-y divide-slate-100"></div>
+          <div id="auditoria-loading" class="p-8 text-center text-slate-400 text-sm">Cargando bitácora…</div>
+        </div>
+      </section>
+
+      <!-- ============ VISTA ADMINISTRACIÓN ============ -->
+      <section id="view-admin" class="hidden">
+        <div class="mb-4 sm:mb-5 animate-fade-up">
+          <h2 class="text-lg sm:text-2xl font-extrabold text-slate-900">Administración</h2>
+          <p class="text-xs sm:text-sm text-slate-500">Alta de equipos, fotografías y credenciales QR</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div class="panel-card animate-fade-up" style="animation-delay:.05s">
+            <h3 class="panel-title"><i data-lucide="plus-circle" class="w-4 h-4"></i> Dar de alta un extintor</h3>
+            <form id="form-admin-extintor" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs font-semibold text-slate-500">Código</label>
+                  <input id="admin-codigo" required placeholder="EXT-009" class="admin-input font-mono uppercase" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-slate-500">Capacidad</label>
+                  <input id="admin-capacidad" required placeholder="10 lb" class="admin-input" />
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-500">Tipo de agente</label>
+                <select id="admin-tipo" required class="admin-input">
+                  <option>PQS-ABC</option><option>CO2</option><option>Agua</option><option>Espuma AFFF</option><option>K</option>
+                </select>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="sm:col-span-2">
+                  <label class="text-xs font-semibold text-slate-500">Ubicación</label>
+                  <input id="admin-ubicacion-nombre" required list="lista-ubicaciones" placeholder="Ej. Recepción Principal, Bodega 3, Azotea…" class="admin-input" />
+                  <datalist id="lista-ubicaciones"></datalist>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-slate-500">Piso (opcional)</label>
+                  <input id="admin-ubicacion-piso" list="lista-pisos" placeholder="PB, Piso 2…" class="admin-input" />
+                  <datalist id="lista-pisos"></datalist>
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-500">Área / departamento (opcional)</label>
+                <input id="admin-ubicacion-area" list="lista-areas" placeholder="Ej. Logística, TI, Académica…" class="admin-input" />
+                <datalist id="lista-areas"></datalist>
+                <p class="text-[11px] text-slate-400 mt-1">Escribe la ubicación como prefieras — no está limitada a una lista fija; las sugerencias son solo para mantener consistencia.</p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="text-xs font-semibold text-slate-500">Recarga</label>
+                  <input id="admin-fecha-recarga" type="date" required class="admin-input" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-slate-500">Vencimiento</label>
+                  <input id="admin-fecha-vencimiento" type="date" required class="admin-input" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-slate-500">Prueba hidro.</label>
+                  <input id="admin-fecha-hidro" type="date" required class="admin-input" />
+                </div>
+              </div>
+
+              <div>
+                <label class="text-xs font-semibold text-slate-500">Fotografía del equipo (opcional)</label>
+                <div class="foto-upload-row">
+                  <div id="admin-foto-preview-wrap" class="foto-preview-wrap">
+                    <img id="admin-foto-preview" class="hidden foto-preview-img" alt="Vista previa" />
+                    <i id="admin-foto-placeholder" data-lucide="image-plus" class="w-5 h-5 text-slate-300"></i>
+                  </div>
+                  <label class="foto-upload-btn">
+                    <i data-lucide="upload" class="w-4 h-4"></i> Elegir foto
+                    <input id="admin-foto-input" type="file" accept="image/*" capture="environment" class="hidden" />
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-admin-submit"><i data-lucide="save" class="w-4 h-4"></i> Guardar equipo</button>
+            </form>
+          </div>
+
+          <div class="panel-card animate-fade-up" style="animation-delay:.1s">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="panel-title mb-0"><i data-lucide="qr-code" class="w-4 h-4"></i> Credenciales QR</h3>
+              <button id="btn-imprimir-qr" class="text-xs font-semibold text-red-600 flex items-center gap-1"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimir todas</button>
+            </div>
+            <div id="qr-grid" class="qr-grid"></div>
+          </div>
+
+          <div class="panel-card lg:col-span-2 animate-fade-up" style="animation-delay:.14s">
+            <h3 class="panel-title"><i data-lucide="images" class="w-4 h-4"></i> Fotografías de equipos</h3>
+            <p class="text-xs text-slate-400 -mt-2 mb-3">Sube o reemplaza la foto de cada extintor para que el inspector lo identifique visualmente al escanear.</p>
+            <div id="fotos-lista" class="fotos-lista"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="text-center text-xs text-slate-400 py-6 no-print hidden sm:block">
+      Sistema Inteligente de Gestión de Extintores — MVP Fase 1
+    </footer>
+
+    <!-- Navegación inferior para móvil / iPad en vertical -->
+    <nav id="mobile-nav" class="mobile-nav no-print sm:hidden">
+      <button data-vista="dashboard" class="mobile-nav-btn mobile-nav-active"><i data-lucide="layout-dashboard" class="w-5 h-5"></i><span>Panel</span></button>
+      <button data-vista="inspeccion" class="mobile-nav-btn"><i data-lucide="scan-line" class="w-5 h-5"></i><span>Inspección</span></button>
+      <button data-vista="auditoria" class="mobile-nav-btn hidden"><i data-lucide="history" class="w-5 h-5"></i><span>Auditoría</span></button>
+      <button data-vista="admin" class="mobile-nav-btn hidden"><i data-lucide="settings" class="w-5 h-5"></i><span>Admin</span></button>
+    </nav>
+  </div>
+
+  <!-- Modal de escaneo QR con cámara -->
+  <div id="qr-modal" class="hidden qr-modal-overlay">
+    <div class="qr-modal">
+      <div class="qr-modal-header">
+        <h3 class="font-bold flex items-center gap-2"><i data-lucide="camera" class="w-4 h-4"></i> Escanear código QR</h3>
+        <button id="btn-cerrar-camara" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div id="qr-reader"></div>
+      <p id="qr-modal-error" class="hidden text-xs text-red-600 mt-2 px-1"></p>
+    </div>
+  </div>
+
+  <!-- Modal: equipo recién creado, QR listo para imprimir -->
+  <div id="qr-nuevo-modal" class="hidden qr-modal-overlay">
+    <div class="qr-modal text-center">
+      <i data-lucide="check-circle-2" class="w-9 h-9 text-emerald-500 mx-auto mb-1"></i>
+      <h3 class="font-bold text-slate-800">Equipo registrado</h3>
+      <p class="text-xs text-slate-500 mb-3">Genera e imprime la etiqueta QR para pegarla en el extintor.</p>
+      <p id="qr-nuevo-codigo" class="font-mono font-extrabold text-lg text-slate-900 mb-2"></p>
+      <div id="qr-nuevo-contenedor" class="qr-svg-contenedor mx-auto"></div>
+      <div class="flex gap-2 mt-4">
+        <button id="btn-imprimir-etiqueta-nueva" class="btn-admin-submit"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir etiqueta</button>
+        <button id="btn-cerrar-qr-nuevo" class="btn-cerrar-modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plantilla oculta usada solo para imprimir una etiqueta individual -->
+  <div id="etiqueta-imprimir" class="etiqueta-imprimir">
+    <div id="etiqueta-qr-contenedor" class="qr-svg-contenedor"></div>
+    <p id="etiqueta-codigo"></p>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
