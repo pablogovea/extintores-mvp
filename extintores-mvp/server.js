@@ -1,6 +1,6 @@
 const path = require('path');
 const express = require('express');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 
 const supabase = require('./lib/supabaseClient');
 const { verificarPassword } = require('./lib/auth');
@@ -8,11 +8,16 @@ const { generarQrSvg } = require('./lib/qr');
 
 const app = express();
 app.use(express.json({ limit: '10mb' })); // limite mayor por fotos y firmas en base64
-app.use(session({
+// Sesión guardada en una cookie firmada (no en memoria del servidor), para que
+// funcione en entornos serverless como Vercel, donde cada petición puede
+// atenderla una instancia distinta. La sesión solo guarda datos mínimos del
+// usuario (id, nombre, rol), así que cabe de sobra en la cookie.
+app.use(cookieSession({
+  name: 'extintores_session',
   secret: process.env.SESSION_SECRET || 'extintores-mvp-secret-2026',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }, // 8 horas
+  maxAge: 8 * 60 * 60 * 1000, // 8 horas
+  httpOnly: true,
+  sameSite: 'lax',
 }));
 
 const PORT = process.env.PORT || 3000;
@@ -78,7 +83,8 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/logout', async (req, res) => {
   if (req.session.usuario) await registrarAuditoria(req.session.usuario, 'Cierre de sesión', null);
-  req.session.destroy(() => res.json({ ok: true }));
+  req.session = null;
+  res.json({ ok: true });
 });
 
 app.get('/api/me', (req, res) => {
@@ -418,6 +424,13 @@ app.get('/api/auditoria', requireRole('Administrador', 'Responsable'), async (re
   res.json(data);
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor del Sistema de Extintores corriendo en http://localhost:${PORT}`);
-});
+// En local (`npm start`) se levanta el servidor HTTP.
+// En Vercel no se llama a listen(): se exporta la app y la plataforma la
+// invoca como función serverless (ver api/index.js).
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor del Sistema de Extintores corriendo en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
