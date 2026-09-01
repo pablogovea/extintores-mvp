@@ -175,6 +175,7 @@
                   <th class="text-left px-3 sm:px-5 py-3 hidden sm:table-cell">Ubicación</th>
                   <th class="text-left px-3 sm:px-5 py-3 hidden md:table-cell">Vencimiento</th>
                   <th class="text-left px-3 sm:px-5 py-3">Estado</th>
+                  <th id="th-acciones" class="text-right px-3 sm:px-5 py-3 hidden">Acciones</th>
                 </tr>
               </thead>
               <tbody id="tabla-extintores" class="divide-y divide-slate-100"></tbody>
@@ -331,7 +332,7 @@
               </div>
               <div>
                 <label class="text-xs font-semibold text-slate-500">Tipo de agente</label>
-                <select id="admin-tipo" required class="admin-input">
+                <select id="admin-tipo" required class="admin-input" title="Tipo de agente">
                   <option>PQS-ABC</option><option>CO2</option><option>Agua</option><option>Espuma AFFF</option><option>K</option>
                 </select>
               </div>
@@ -400,6 +401,52 @@
             <p class="text-xs text-slate-400 -mt-2 mb-3">Sube o reemplaza la foto de cada extintor para que el inspector lo identifique visualmente al escanear.</p>
             <div id="fotos-lista" class="fotos-lista"></div>
           </div>
+
+          <!-- Gestión de usuarios — solo Administrador -->
+          <div id="panel-usuarios" class="panel-card lg:col-span-2 animate-fade-up hidden" style="animation-delay:.18s">
+            <h3 class="panel-title"><i data-lucide="users" class="w-4 h-4"></i> Usuarios del sistema</h3>
+            <p class="text-xs text-slate-400 -mt-2 mb-3">Alta, edición y baja de usuarios. Roles: <b>Inspector</b> (ver + inspeccionar), <b>Responsable</b> (además crear/editar equipos y ver auditoría), <b>Administrador</b> (todo, incluido eliminar).</p>
+
+            <form id="form-usuario" class="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end mb-4">
+              <input type="hidden" id="usuario-id" />
+              <div class="sm:col-span-2">
+                <label class="text-xs font-semibold text-slate-500">Nombre completo</label>
+                <input id="usuario-nombre" required placeholder="María López" class="admin-input" />
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-500">Usuario (acceso)</label>
+                <input id="usuario-username" required placeholder="maria" class="admin-input lowercase" />
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-500">Rol</label>
+                <select id="usuario-rol" class="admin-input" title="Rol del usuario">
+                  <option>Inspector</option><option>Responsable</option><option>Administrador</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-500"><span id="usuario-pass-label">Contraseña</span></label>
+                <input id="usuario-password" type="text" placeholder="mín. 6 caracteres" class="admin-input" />
+              </div>
+              <div class="sm:col-span-5 flex gap-2">
+                <button type="submit" id="usuario-submit" class="btn-admin-submit sm:w-auto sm:px-4"><i data-lucide="user-plus" class="w-4 h-4"></i> Crear usuario</button>
+                <button type="button" id="usuario-cancelar" class="btn-cerrar-modal hidden">Cancelar edición</button>
+              </div>
+            </form>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+                  <tr>
+                    <th class="text-left px-3 py-2">Nombre</th>
+                    <th class="text-left px-3 py-2">Usuario</th>
+                    <th class="text-left px-3 py-2">Rol</th>
+                    <th class="text-right px-3 py-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="tabla-usuarios" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -441,6 +488,78 @@
         <button id="btn-imprimir-etiqueta-nueva" class="btn-admin-submit"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir etiqueta</button>
         <button id="btn-cerrar-qr-nuevo" class="btn-cerrar-modal">Cerrar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: editar extintor (Responsable / Administrador) -->
+  <div id="editar-modal" class="hidden qr-modal-overlay">
+    <div class="qr-modal" style="max-width:560px; max-height:92vh; overflow-y:auto;">
+      <div class="qr-modal-header">
+        <h3 class="font-bold flex items-center gap-2"><i data-lucide="pencil" class="w-4 h-4"></i> Editar extintor</h3>
+        <button id="btn-cerrar-editar" class="text-slate-400 hover:text-slate-700" title="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form id="form-editar-extintor" class="space-y-3">
+        <input type="hidden" id="edit-codigo-original" />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Código</label>
+            <input id="edit-codigo" required class="admin-input font-mono uppercase" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Capacidad</label>
+            <input id="edit-capacidad" required class="admin-input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Tipo de agente</label>
+            <select id="edit-tipo" required class="admin-input" title="Tipo de agente">
+              <option>PQS-ABC</option><option>CO2</option><option>Agua</option><option>Espuma AFFF</option><option>K</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Estado</label>
+            <select id="edit-estado" class="admin-input" title="Estado del equipo">
+              <option value="Automático">Automático (por fecha)</option>
+              <option value="Operativo">Operativo</option>
+              <option value="Mantenimiento">Mantenimiento</option>
+              <option value="Vencido">Vencido</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-500">Ubicación</label>
+          <input id="edit-ubicacion-nombre" required list="lista-ubicaciones" class="admin-input" />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Área / departamento</label>
+            <input id="edit-ubicacion-area" list="lista-areas" class="admin-input" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Piso</label>
+            <input id="edit-ubicacion-piso" list="lista-pisos" class="admin-input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Recarga</label>
+            <input id="edit-fecha-recarga" type="date" required class="admin-input" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Vencimiento</label>
+            <input id="edit-fecha-vencimiento" type="date" required class="admin-input" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500">Prueba hidro.</label>
+            <input id="edit-fecha-hidro" type="date" required class="admin-input" />
+          </div>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button type="submit" class="btn-admin-submit"><i data-lucide="save" class="w-4 h-4"></i> Guardar cambios</button>
+          <button type="button" id="btn-cancelar-editar" class="btn-cerrar-modal">Cancelar</button>
+        </div>
+      </form>
     </div>
   </div>
 

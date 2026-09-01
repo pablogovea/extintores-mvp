@@ -26,9 +26,13 @@ Contraseña de demo para todos: **`extintor2026`**
 
 | Usuario | Rol | Puede |
 |---|---|---|
-| `carlos` / `luis` | Inspector | Registrar inspecciones |
-| `ana` | Responsable | + Auditoría + exportar PDF |
-| `admin` | Administrador | + Alta de extintores + fotos + credenciales QR |
+| `carlos` / `luis` | Inspector | Ver inventario y fichas · registrar inspecciones |
+| `ana` | Responsable | + crear / **editar** extintores · subir fotos · credenciales QR · auditoría · exportar PDF |
+| `admin` | Administrador | + **eliminar** extintores · **gestión de usuarios** (alta / edición / baja) |
+
+> Las políticas por rol se aplican en el backend (`server.js`), en cada endpoint.
+> El detalle completo está en el comentario `POLÍTICAS DE ACCESO POR ROL` de ese archivo.
+> Un Inspector que intente crear o borrar recibe `403`; la interfaz además le oculta esos controles.
 
 ## Los dos ajustes de esta versión
 

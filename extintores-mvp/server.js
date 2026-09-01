@@ -3,7 +3,7 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 
 const supabase = require('./lib/supabaseClient');
-const { verificarPassword } = require('./lib/auth');
+const { verificarPassword, hashPassword } = require('./lib/auth');
 const { generarQrSvg } = require('./lib/qr');
 
 const app = express();
@@ -23,6 +23,26 @@ app.use(cookieSession({
 const PORT = process.env.PORT || 3000;
 
 // ---------- Utilidades de seguridad y auditoria ----------
+
+// ============================================================
+// POLÍTICAS DE ACCESO POR ROL
+// El control se hace aquí, en el backend (sesión + rol). Supabase se
+// consulta con la service_role key, que ignora las políticas RLS de
+// Postgres, por eso las reglas viven en estos middlewares.
+//
+//   Acción                        Inspector  Responsable  Administrador
+//   ---------------------------------------------------------------------
+//   Ver inventario / ficha / QR       Sí         Sí            Sí
+//   Registrar inspección             Sí         Sí            Sí
+//   Ver dashboard / notificaciones   Sí         Sí            Sí
+//   Ver auditoría                    No         Sí            Sí
+//   Crear / editar extintor          No         Sí            Sí
+//   Subir / cambiar foto             No         Sí            Sí
+//   Eliminar extintor                No         No            Sí
+//   Gestionar usuarios               No         No            Sí
+// ============================================================
+const GESTOR = ['Administrador', 'Responsable']; // puede crear/editar inventario
+const ADMIN = ['Administrador'];                 // puede borrar y gestionar usuarios
 
 function requireAuth(req, res, next) {
   if (!req.session.usuario) {
@@ -180,7 +200,7 @@ app.get('/api/extintores/:codigo', requireAuth, async (req, res) => {
 // depender de una tabla/lista fija: el usuario la ajusta a sus necesidades.
 // Al crear el equipo, el servidor genera su código QR (SVG) y lo guarda
 // directamente en la fila, para que quede disponible de inmediato.
-app.post('/api/extintores', requireRole('Administrador'), async (req, res) => {
+app.post('/api/extintores', requireRole(...GESTOR), async (req, res) => {
   const {
     codigo, tipo_agente, capacidad,
     ubicacion_nombre, ubicacion_area, ubicacion_piso,
@@ -238,6 +258,110 @@ app.post('/api/extintores', requireRole('Administrador'), async (req, res) => {
   res.status(201).json({ ...enriquecerExtintor(creadoLivano), tiene_foto: !!foto_base64 });
 });
 
+// Editar los datos de un extintor existente — Responsable o Administrador.
+// El código identifica al equipo en la URL; si se envía un "codigo" nuevo en el
+// cuerpo, se permite renombrarlo (validando que no choque con otro).
+app.put('/api/extintores/:codigo', requireRole(...GESTOR), async (req, res) => {
+  const codigoActual = req.params.codigo.trim().toUpperCase();
+
+  const { data: existente, error: errBusqueda } = await supabase
+    .from('extintores')
+    .select('id, codigo')
+    .ilike('codigo', codigoActual)
+    .maybeSingle();
+
+  if (errBusqueda) {
+    console.error(errBusqueda);
+    return res.status(500).json({ error: 'Error al consultar el equipo.' });
+  }
+  if (!existente) {
+    return res.status(404).json({ error: `No se encontro ningun extintor con el codigo "${req.params.codigo}".` });
+  }
+
+  const {
+    codigo, tipo_agente, capacidad,
+    ubicacion_nombre, ubicacion_area, ubicacion_piso,
+    fecha_recarga, fecha_vencimiento, fecha_prueba_hidrostatica,
+    estado_manual,
+  } = req.body;
+
+  if (!tipo_agente || !capacidad || !ubicacion_nombre || !fecha_recarga || !fecha_vencimiento || !fecha_prueba_hidrostatica) {
+    return res.status(400).json({ error: 'Agente, capacidad, ubicación y fechas son obligatorios.' });
+  }
+
+  const cambios = {
+    tipo_agente,
+    capacidad,
+    ubicacion_nombre: ubicacion_nombre.trim(),
+    ubicacion_area: (ubicacion_area || '').trim() || null,
+    ubicacion_piso: (ubicacion_piso || '').trim() || null,
+    fecha_recarga,
+    fecha_vencimiento,
+    fecha_prueba_hidrostatica,
+    // estado_manual: '' o 'Automático' -> null (lo calcula el sistema por fecha)
+    estado_manual: estado_manual && estado_manual !== 'Automático' ? estado_manual : null,
+  };
+
+  // ¿Se quiere renombrar el equipo?
+  const codigoNuevo = (codigo || '').trim().toUpperCase();
+  if (codigoNuevo && codigoNuevo !== existente.codigo.toUpperCase()) {
+    const { data: choque } = await supabase.from('extintores').select('id').ilike('codigo', codigoNuevo).maybeSingle();
+    if (choque) return res.status(409).json({ error: `Ya existe otro extintor con el código "${codigo}".` });
+    cambios.codigo = codigoNuevo;
+    try {
+      cambios.qr_svg = await generarQrSvg(codigoNuevo); // el QR codifica el código: hay que regenerarlo
+    } catch (err) {
+      console.error('No se pudo regenerar el código QR:', err.message);
+    }
+  }
+
+  const { data: actualizado, error } = await supabase
+    .from('extintores')
+    .update(cambios)
+    .eq('id', existente.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(400).json({ error: 'No se pudo actualizar el extintor. Verifica los datos enviados.' });
+  }
+
+  await registrarAuditoria(req.session.usuario, 'Edición de extintor', `Equipo ${actualizado.codigo} actualizado.`);
+
+  const { foto_base64: _omitida, ...liviano } = actualizado;
+  res.json({ ...enriquecerExtintor(liviano), tiene_foto: !!actualizado.foto_base64 });
+});
+
+// Eliminar un extintor — solo Administrador.
+// Las inspecciones asociadas se borran en cascada (ver schema.sql).
+app.delete('/api/extintores/:codigo', requireRole(...ADMIN), async (req, res) => {
+  const codigo = req.params.codigo.trim().toUpperCase();
+
+  const { data: existente, error: errBusqueda } = await supabase
+    .from('extintores')
+    .select('id, codigo')
+    .ilike('codigo', codigo)
+    .maybeSingle();
+
+  if (errBusqueda) {
+    console.error(errBusqueda);
+    return res.status(500).json({ error: 'Error al consultar el equipo.' });
+  }
+  if (!existente) {
+    return res.status(404).json({ error: `No se encontro ningun extintor con el codigo "${req.params.codigo}".` });
+  }
+
+  const { error } = await supabase.from('extintores').delete().eq('id', existente.id);
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'No se pudo eliminar el extintor.' });
+  }
+
+  await registrarAuditoria(req.session.usuario, 'Baja de extintor', `Equipo ${existente.codigo} eliminado del inventario.`);
+  res.json({ ok: true, codigo: existente.codigo });
+});
+
 // Devuelve el QR de un equipo. Si por alguna razón no se generó al crearlo
 // (por ejemplo, equipos migrados desde la versión anterior), lo genera aquí
 // mismo y lo guarda, para que quede disponible de forma permanente.
@@ -261,7 +385,7 @@ app.get('/api/extintores/:codigo/qr', requireAuth, async (req, res) => {
 });
 
 // Subir o reemplazar la foto de un extintor existente — solo Administrador
-app.put('/api/extintores/:codigo/foto', requireRole('Administrador'), async (req, res) => {
+app.put('/api/extintores/:codigo/foto', requireRole(...GESTOR), async (req, res) => {
   const { foto_base64 } = req.body;
   if (!foto_base64) return res.status(400).json({ error: 'No se recibió ninguna imagen.' });
   if (foto_base64.length > 4_000_000) return res.status(413).json({ error: 'La foto es demasiado grande. Intenta con una imagen más ligera.' });
@@ -294,10 +418,152 @@ app.get('/api/ubicaciones-sugeridas', requireAuth, async (req, res) => {
   });
 });
 
-app.get('/api/usuarios', requireAuth, async (req, res) => {
-  const { data, error } = await supabase.from('usuarios').select('id, nombre, rol, iniciales').order('nombre', { ascending: true });
+app.get('/api/usuarios', requireRole(...ADMIN), async (req, res) => {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nombre, username, rol, iniciales, creado_en')
+    .order('nombre', { ascending: true });
   if (error) return res.status(500).json({ error: 'Error al consultar usuarios.' });
   res.json(data);
+});
+
+// ---------- Rutas API: gestión de usuarios (solo Administrador) ----------
+
+const ROLES_VALIDOS = ['Inspector', 'Responsable', 'Administrador'];
+
+function inicialesDe(nombre) {
+  return nombre.trim().split(/\s+/).slice(0, 2).map(p => p[0].toUpperCase()).join('');
+}
+
+// Crear un usuario nuevo.
+app.post('/api/usuarios', requireRole(...ADMIN), async (req, res) => {
+  const { nombre, username, password, rol } = req.body;
+  const iniciales = (req.body.iniciales || '').trim();
+
+  if (!nombre || !username || !password || !rol) {
+    return res.status(400).json({ error: 'Nombre, usuario, contraseña y rol son obligatorios.' });
+  }
+  if (!ROLES_VALIDOS.includes(rol)) {
+    return res.status(400).json({ error: `El rol debe ser uno de: ${ROLES_VALIDOS.join(', ')}.` });
+  }
+  if (String(password).length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+  }
+
+  const usernameNorm = username.trim().toLowerCase();
+  const { data: existente } = await supabase.from('usuarios').select('id').eq('username', usernameNorm).maybeSingle();
+  if (existente) return res.status(409).json({ error: `Ya existe un usuario con el nombre de acceso "${usernameNorm}".` });
+
+  const { salt, hash } = hashPassword(String(password));
+  const { data: creado, error } = await supabase
+    .from('usuarios')
+    .insert({
+      nombre: nombre.trim(),
+      username: usernameNorm,
+      rol,
+      iniciales: iniciales || inicialesDe(nombre),
+      password_hash: hash,
+      password_salt: salt,
+    })
+    .select('id, nombre, username, rol, iniciales, creado_en')
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(400).json({ error: 'No se pudo crear el usuario.' });
+  }
+
+  await registrarAuditoria(req.session.usuario, 'Alta de usuario', `Usuario "${creado.username}" creado con rol ${creado.rol}.`);
+  res.status(201).json(creado);
+});
+
+// Editar un usuario: nombre, rol, iniciales y (opcionalmente) contraseña.
+app.put('/api/usuarios/:id', requireRole(...ADMIN), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Id de usuario inválido.' });
+
+  const { data: objetivo, error: errBusqueda } = await supabase.from('usuarios').select('*').eq('id', id).maybeSingle();
+  if (errBusqueda) return res.status(500).json({ error: 'Error al consultar el usuario.' });
+  if (!objetivo) return res.status(404).json({ error: 'El usuario no existe.' });
+
+  const { nombre, rol, password } = req.body;
+  const iniciales = (req.body.iniciales || '').trim();
+  const cambios = {};
+
+  if (nombre && nombre.trim()) cambios.nombre = nombre.trim();
+  if (iniciales) cambios.iniciales = iniciales;
+  if (rol) {
+    if (!ROLES_VALIDOS.includes(rol)) return res.status(400).json({ error: `Rol inválido.` });
+    // No permitir quitarle el rol de Administrador al último que queda.
+    if (objetivo.rol === 'Administrador' && rol !== 'Administrador') {
+      const { count } = await supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('rol', 'Administrador');
+      if ((count || 0) <= 1) return res.status(409).json({ error: 'Debe existir al menos un Administrador.' });
+    }
+    cambios.rol = rol;
+  }
+  if (password) {
+    if (String(password).length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    const { salt, hash } = hashPassword(String(password));
+    cambios.password_hash = hash;
+    cambios.password_salt = salt;
+  }
+
+  if (Object.keys(cambios).length === 0) return res.status(400).json({ error: 'No se envió ningún cambio.' });
+
+  const { data: actualizado, error } = await supabase
+    .from('usuarios')
+    .update(cambios)
+    .eq('id', id)
+    .select('id, nombre, username, rol, iniciales, creado_en')
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(400).json({ error: 'No se pudo actualizar el usuario.' });
+  }
+
+  // Si el admin se editó a sí mismo, refrescar los datos de su sesión.
+  if (id === req.session.usuario.id) {
+    req.session.usuario = { ...req.session.usuario, nombre: actualizado.nombre, rol: actualizado.rol, iniciales: actualizado.iniciales };
+  }
+
+  await registrarAuditoria(req.session.usuario, 'Edición de usuario', `Usuario "${actualizado.username}" actualizado.`);
+  res.json(actualizado);
+});
+
+// Eliminar un usuario.
+app.delete('/api/usuarios/:id', requireRole(...ADMIN), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Id de usuario inválido.' });
+
+  if (id === req.session.usuario.id) {
+    return res.status(409).json({ error: 'No puedes eliminar tu propio usuario.' });
+  }
+
+  const { data: objetivo, error: errBusqueda } = await supabase.from('usuarios').select('id, username, rol').eq('id', id).maybeSingle();
+  if (errBusqueda) return res.status(500).json({ error: 'Error al consultar el usuario.' });
+  if (!objetivo) return res.status(404).json({ error: 'El usuario no existe.' });
+
+  if (objetivo.rol === 'Administrador') {
+    const { count } = await supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('rol', 'Administrador');
+    if ((count || 0) <= 1) return res.status(409).json({ error: 'No puedes eliminar al último Administrador.' });
+  }
+
+  // Las inspecciones referencian usuario_id (sin ON DELETE): si el usuario tiene
+  // inspecciones registradas, Postgres bloqueará el borrado. Lo informamos claro.
+  const { count: nInspecciones } = await supabase.from('inspecciones').select('*', { count: 'exact', head: true }).eq('usuario_id', id);
+  if ((nInspecciones || 0) > 0) {
+    return res.status(409).json({ error: 'Este usuario tiene inspecciones registradas y no se puede eliminar. Cambia su rol o contraseña en su lugar.' });
+  }
+
+  const { error } = await supabase.from('usuarios').delete().eq('id', id);
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'No se pudo eliminar el usuario.' });
+  }
+
+  await registrarAuditoria(req.session.usuario, 'Baja de usuario', `Usuario "${objetivo.username}" eliminado.`);
+  res.json({ ok: true });
 });
 
 // ---------- Rutas API: inspecciones ----------

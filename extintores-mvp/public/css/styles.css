@@ -303,4 +303,10 @@ body.imprimiendo-etiqueta .etiqueta-imprimir {
   border: 0.3mm solid #000;
 }
 body.imprimiendo-etiqueta .etiqueta-imprimir p { font-family: 'Space Grotesk', monospace; font-size: 8pt; font-weight: 700; margin: 0; }
+
+/* ==================== ACCIONES EN TABLAS (editar / eliminar) ==================== */
+.tabla-accion-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: .55rem; color: #475569; border: 1px solid #e2e8f0; margin-left: .3rem; transition: all .15s ease; }
+.tabla-accion-btn:hover { background: #f1f5f9; color: #0f172a; border-color: #cbd5e1; }
+.tabla-accion-danger:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.rol-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .6rem; border-radius: 999px; font-size: .7rem; font-weight: 700; background: #f1f5f9; color: #475569; }
 body.imprimiendo-etiqueta .etiqueta-imprimir .qr-svg-contenedor svg { width: 20mm; height: 20mm; }

@@ -84,12 +84,23 @@ async function verificarSesion() {
   refrescarIconos();
 }
 
+// Políticas de acceso en el cliente. Son solo para mostrar/ocultar controles;
+// la autorización real la impone el backend en cada endpoint (ver server.js).
+//   Inspector     -> ver inventario y registrar inspecciones
+//   Responsable   -> además: crear/editar extintores, subir fotos, ver auditoría
+//   Administrador -> además: eliminar extintores y gestionar usuarios
+function puedeGestionarInventario() { return usuarioActual && (usuarioActual.rol === 'Administrador' || usuarioActual.rol === 'Responsable'); }
+function esAdministrador() { return usuarioActual && usuarioActual.rol === 'Administrador'; }
+
 function aplicarPermisosPorRol(rol) {
   const puedeAuditoria = rol === 'Administrador' || rol === 'Responsable';
+  const puedeGestionar = rol === 'Administrador' || rol === 'Responsable';
   const puedeAdmin = rol === 'Administrador';
   document.querySelectorAll('[data-vista="auditoria"]').forEach(el => el.classList.toggle('hidden', !puedeAuditoria));
-  document.querySelectorAll('[data-vista="admin"]').forEach(el => el.classList.toggle('hidden', !puedeAdmin));
+  document.querySelectorAll('[data-vista="admin"]').forEach(el => el.classList.toggle('hidden', !puedeGestionar));
   document.getElementById('btn-exportar-pdf').classList.toggle('hidden', !puedeAuditoria);
+  document.getElementById('th-acciones').classList.toggle('hidden', !puedeGestionar);
+  document.getElementById('panel-usuarios').classList.toggle('hidden', !puedeAdmin);
 }
 
 function entrarAlApp(usuario, esNuevoLogin) {
@@ -158,7 +169,7 @@ function mostrarVista(vista) {
   document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.toggle('mobile-nav-active', btn.dataset.vista === vista));
   if (vista === 'dashboard') cargarDashboard();
   if (vista === 'auditoria') cargarAuditoria();
-  if (vista === 'admin') { cargarSugerenciasUbicacion(); renderCredencialesQR(); renderFotosLista(); }
+  if (vista === 'admin') { cargarSugerenciasUbicacion(); renderCredencialesQR(); renderFotosLista(); if (esAdministrador()) cargarUsuarios(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
   refrescarIconos();
 }
@@ -321,6 +332,8 @@ function renderChartUbicaciones(porUbicacion) {
 }
 function renderTabla(extintores) {
   const tbody = document.getElementById('tabla-extintores');
+  const gestor = puedeGestionarInventario();
+  const admin = esAdministrador();
   tbody.innerHTML = extintores.map((e, i) => `
     <tr class="animate-fade-up" style="animation-delay:${Math.min(i * 0.03, 0.4)}s">
       <td class="px-3 sm:px-5 py-3 font-mono font-semibold text-slate-700">${e.codigo}</td>
@@ -328,7 +341,15 @@ function renderTabla(extintores) {
       <td class="px-3 sm:px-5 py-3 text-slate-500 hidden sm:table-cell">${e.ubicacion_nombre}</td>
       <td class="px-3 sm:px-5 py-3 text-slate-500 hidden md:table-cell">${formatearFecha(e.fecha_vencimiento)}</td>
       <td class="px-3 sm:px-5 py-3"><span class="badge ${badgeClase(e.estado)}">${e.estado}</span></td>
+      ${gestor ? `
+      <td class="px-3 sm:px-5 py-3 text-right whitespace-nowrap">
+        <button class="tabla-accion-btn" data-editar="${e.codigo}" title="Editar ${e.codigo}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+        ${admin ? `<button class="tabla-accion-btn tabla-accion-danger" data-eliminar="${e.codigo}" title="Eliminar ${e.codigo}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+      </td>` : ''}
     </tr>`).join('');
+  tbody.querySelectorAll('[data-editar]').forEach(b => b.addEventListener('click', () => abrirModalEditar(b.dataset.editar)));
+  tbody.querySelectorAll('[data-eliminar]').forEach(b => b.addEventListener('click', () => eliminarExtintor(b.dataset.eliminar)));
+  refrescarIconos();
 }
 document.getElementById('refresh-dashboard').addEventListener('click', () => { sonidos.info(); cargarDashboard(); cargarNotificaciones(); });
 document.getElementById('filtro-tabla').addEventListener('input', (e) => {
@@ -772,6 +793,187 @@ async function cargarMiniaturaFoto(codigo) {
     const thumb = document.getElementById(`thumb-${codigo}`);
     if (thumb && data.foto_base64) thumb.innerHTML = `<img src="${data.foto_base64}" alt="${codigo}" />`;
   } catch (e) { /* se omite */ }
+}
+
+// ==================== EDITAR / ELIMINAR EXTINTOR ====================
+const editarModal = document.getElementById('editar-modal');
+
+function abrirModalEditar(codigo) {
+  const e = inventarioCompleto.find(x => x.codigo === codigo);
+  if (!e) { mostrarToast({ tipo: 'error', titulo: 'No se encontró el equipo en la vista actual' }); return; }
+  document.getElementById('edit-codigo-original').value = e.codigo;
+  document.getElementById('edit-codigo').value = e.codigo;
+  document.getElementById('edit-capacidad').value = e.capacidad || '';
+  document.getElementById('edit-tipo').value = e.tipo_agente;
+  document.getElementById('edit-estado').value = e.estado_manual || 'Automático';
+  document.getElementById('edit-ubicacion-nombre').value = e.ubicacion_nombre || '';
+  document.getElementById('edit-ubicacion-area').value = e.ubicacion_area || '';
+  document.getElementById('edit-ubicacion-piso').value = e.ubicacion_piso || '';
+  document.getElementById('edit-fecha-recarga').value = e.fecha_recarga || '';
+  document.getElementById('edit-fecha-vencimiento').value = e.fecha_vencimiento || '';
+  document.getElementById('edit-fecha-hidro').value = e.fecha_prueba_hidrostatica || '';
+  cargarSugerenciasUbicacion();
+  editarModal.classList.remove('hidden');
+  refrescarIconos();
+}
+function cerrarModalEditar() { editarModal.classList.add('hidden'); }
+document.getElementById('btn-cerrar-editar').addEventListener('click', cerrarModalEditar);
+document.getElementById('btn-cancelar-editar').addEventListener('click', cerrarModalEditar);
+
+document.getElementById('form-editar-extintor').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const codigoOriginal = document.getElementById('edit-codigo-original').value;
+  const payload = {
+    codigo: document.getElementById('edit-codigo').value.trim().toUpperCase(),
+    tipo_agente: document.getElementById('edit-tipo').value,
+    capacidad: document.getElementById('edit-capacidad').value.trim(),
+    estado_manual: document.getElementById('edit-estado').value,
+    ubicacion_nombre: document.getElementById('edit-ubicacion-nombre').value.trim(),
+    ubicacion_area: document.getElementById('edit-ubicacion-area').value.trim(),
+    ubicacion_piso: document.getElementById('edit-ubicacion-piso').value.trim(),
+    fecha_recarga: document.getElementById('edit-fecha-recarga').value,
+    fecha_vencimiento: document.getElementById('edit-fecha-vencimiento').value,
+    fecha_prueba_hidrostatica: document.getElementById('edit-fecha-hidro').value,
+  };
+  try {
+    const res = await fetch(`/api/extintores/${encodeURIComponent(codigoOriginal)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) { mostrarToast({ tipo: 'error', titulo: 'No se pudo guardar', descripcion: data.error }); return; }
+    mostrarToast({ tipo: 'success', titulo: 'Extintor actualizado', descripcion: `${data.codigo} guardado correctamente.` });
+    cerrarModalEditar();
+    if (payload.codigo !== codigoOriginal) { delete cachesQrSvg[codigoOriginal]; cachesQrSvg[data.codigo] = data.qr_svg || null; }
+    cargarDashboard();
+    cargarNotificaciones();
+    if (!secciones.admin.classList.contains('hidden')) { renderCredencialesQR(); renderFotosLista(); }
+  } catch (err) {
+    mostrarToast({ tipo: 'error', titulo: 'Error de conexión', descripcion: 'No se pudo actualizar el equipo.' });
+  }
+});
+
+async function eliminarExtintor(codigo) {
+  if (!confirm(`¿Eliminar el extintor ${codigo}?\n\nSe borrará también su historial de inspecciones. Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await fetch(`/api/extintores/${encodeURIComponent(codigo)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { mostrarToast({ tipo: 'error', titulo: 'No se pudo eliminar', descripcion: data.error }); return; }
+    mostrarToast({ tipo: 'success', titulo: 'Extintor eliminado', descripcion: `${codigo} se quitó del inventario.` });
+    delete cachesQrSvg[codigo];
+    cargarDashboard();
+    cargarNotificaciones();
+    if (!secciones.admin.classList.contains('hidden')) { renderCredencialesQR(); renderFotosLista(); }
+  } catch (err) {
+    mostrarToast({ tipo: 'error', titulo: 'Error de conexión', descripcion: 'No se pudo eliminar el equipo.' });
+  }
+}
+
+// ==================== GESTIÓN DE USUARIOS (solo Administrador) ====================
+const formUsuario = document.getElementById('form-usuario');
+const ICONO_ROL = { Inspector: 'scan-line', Responsable: 'clipboard-check', Administrador: 'shield' };
+let usuariosCargados = [];
+
+function escaparHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+async function cargarUsuarios() {
+  const tbody = document.getElementById('tabla-usuarios');
+  tbody.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-slate-400 text-sm">Cargando usuarios…</td></tr>';
+  try {
+    const res = await fetch('/api/usuarios');
+    const usuarios = await res.json();
+    if (!res.ok) throw new Error();
+    usuariosCargados = usuarios;
+    tbody.innerHTML = usuarios.map(u => `
+      <tr>
+        <td class="px-3 py-2 font-medium text-slate-700">${escaparHtml(u.nombre)}</td>
+        <td class="px-3 py-2 text-slate-500 font-mono">${escaparHtml(u.username)}</td>
+        <td class="px-3 py-2"><span class="rol-chip"><i data-lucide="${ICONO_ROL[u.rol] || 'user'}" class="w-3 h-3"></i> ${u.rol}</span></td>
+        <td class="px-3 py-2 text-right whitespace-nowrap">
+          <button class="tabla-accion-btn" data-editar-usuario="${u.id}" title="Editar ${escaparHtml(u.username)}"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+          <button class="tabla-accion-btn tabla-accion-danger" data-eliminar-usuario="${u.id}" title="Eliminar ${escaparHtml(u.username)}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </td>
+      </tr>`).join('');
+    tbody.querySelectorAll('[data-editar-usuario]').forEach(b => b.addEventListener('click', () => {
+      const u = usuariosCargados.find(x => String(x.id) === b.dataset.editarUsuario);
+      if (u) cargarUsuarioEnForm(u);
+    }));
+    tbody.querySelectorAll('[data-eliminar-usuario]').forEach(b => b.addEventListener('click', () => {
+      const u = usuariosCargados.find(x => String(x.id) === b.dataset.eliminarUsuario);
+      if (u) eliminarUsuario(u.id, u.username);
+    }));
+    refrescarIconos();
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-slate-400 text-sm">No se pudo cargar la lista de usuarios.</td></tr>';
+  }
+}
+
+function cargarUsuarioEnForm(u) {
+  document.getElementById('usuario-id').value = u.id;
+  document.getElementById('usuario-nombre').value = u.nombre;
+  document.getElementById('usuario-username').value = u.username;
+  document.getElementById('usuario-username').disabled = true;
+  document.getElementById('usuario-rol').value = u.rol;
+  document.getElementById('usuario-password').value = '';
+  document.getElementById('usuario-pass-label').textContent = 'Contraseña (dejar vacío = sin cambio)';
+  document.getElementById('usuario-submit').innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Guardar cambios';
+  document.getElementById('usuario-cancelar').classList.remove('hidden');
+  refrescarIconos();
+  document.getElementById('panel-usuarios').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function resetFormUsuario() {
+  formUsuario.reset();
+  document.getElementById('usuario-id').value = '';
+  document.getElementById('usuario-username').disabled = false;
+  document.getElementById('usuario-pass-label').textContent = 'Contraseña';
+  document.getElementById('usuario-submit').innerHTML = '<i data-lucide="user-plus" class="w-4 h-4"></i> Crear usuario';
+  document.getElementById('usuario-cancelar').classList.add('hidden');
+  refrescarIconos();
+}
+document.getElementById('usuario-cancelar').addEventListener('click', resetFormUsuario);
+
+formUsuario.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('usuario-id').value;
+  const password = document.getElementById('usuario-password').value;
+  const body = {
+    nombre: document.getElementById('usuario-nombre').value.trim(),
+    rol: document.getElementById('usuario-rol').value,
+  };
+  if (password) body.password = password;
+  let url = '/api/usuarios', method = 'POST';
+  if (id) { url += '/' + id; method = 'PUT'; }
+  else { body.username = document.getElementById('usuario-username').value.trim().toLowerCase(); body.password = password; }
+
+  try {
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) { mostrarToast({ tipo: 'error', titulo: 'No se pudo guardar', descripcion: data.error }); return; }
+    mostrarToast({ tipo: 'success', titulo: id ? 'Usuario actualizado' : 'Usuario creado', descripcion: `${data.nombre} (${data.rol}).` });
+    resetFormUsuario();
+    // Si el administrador se editó a sí mismo (p. ej. cambió su rol o nombre),
+    // recargamos para que la sesión y los permisos de la interfaz se actualicen.
+    if (id && usuarioActual && Number(id) === usuarioActual.id) {
+      setTimeout(() => location.reload(), 800);
+      return;
+    }
+    cargarUsuarios();
+  } catch (err) {
+    mostrarToast({ tipo: 'error', titulo: 'Error de conexión', descripcion: 'No se pudo guardar el usuario.' });
+  }
+});
+
+async function eliminarUsuario(id, username) {
+  if (!confirm(`¿Eliminar al usuario "${username}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await fetch('/api/usuarios/' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { mostrarToast({ tipo: 'error', titulo: 'No se pudo eliminar', descripcion: data.error }); return; }
+    mostrarToast({ tipo: 'success', titulo: 'Usuario eliminado', descripcion: `"${username}" fue dado de baja.` });
+    cargarUsuarios();
+  } catch (err) {
+    mostrarToast({ tipo: 'error', titulo: 'Error de conexión', descripcion: 'No se pudo eliminar el usuario.' });
+  }
 }
 
 // ==================== INICIO ====================
