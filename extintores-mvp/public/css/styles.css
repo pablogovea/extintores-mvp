@@ -234,12 +234,55 @@ svg[data-lucide] { width: 1em; height: 1em; }
 .auditoria-detalle { font-size: .8rem; color: #64748b; margin-top: .1rem; }
 .auditoria-fecha { font-size: .72rem; color: #94a3b8; margin-top: .2rem; }
 
-/* ==================== IMPRESIÓN ==================== */
+/* ==================== IMPRESIÓN DE ETIQUETAS QR ==================== */
+/* En pantalla el área de impresión no se ve. Al imprimir (una etiqueta o
+   todas), JS le pone el contenido y añade la clase .modo-impresion al body:
+   entonces se oculta TODO lo demás y solo se imprime esta área. */
+.area-impresion { display: none; }
+
 @media print {
   .no-print { display: none !important; }
-  body.imprimiendo-grid * { visibility: hidden; }
-  body.imprimiendo-grid #qr-grid, body.imprimiendo-grid #qr-grid * { visibility: visible; }
-  body.imprimiendo-grid #qr-grid { position: absolute; top: 0; left: 0; width: 100%; max-height: none; overflow: visible; }
+
+  body.modo-impresion > *:not(#area-impresion) { display: none !important; }
+  body.modo-impresion #area-impresion { display: block !important; }
+
+  .etiquetas-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6mm;
+    align-content: flex-start;
+  }
+  .etiquetas-grid.una-etiqueta { justify-content: center; }
+  .etiqueta-print {
+    box-sizing: border-box;
+    width: calc((100% - 12mm) / 3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2mm;
+    padding: 4mm 3mm;
+    border: 0.3mm solid #111;
+    border-radius: 2mm;
+    text-align: center;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .etiquetas-grid.una-etiqueta .etiqueta-print { width: 60mm; }
+  .etiqueta-print .qr-svg-contenedor svg,
+  .etiqueta-print svg {
+    width: 36mm !important;
+    height: 36mm !important;
+    display: block;
+  }
+  .etiqueta-print-codigo {
+    margin: 0;
+    font-family: 'Space Grotesk', monospace;
+    font-weight: 700;
+    font-size: 11pt;
+    letter-spacing: .02em;
+  }
+
+  @page { margin: 10mm; }
 }
 
 /* ==================== NAVEGACIÓN INFERIOR MÓVIL ==================== */
@@ -289,24 +332,12 @@ svg[data-lucide] { width: 1em; height: 1em; }
 .btn-cerrar-modal { padding: .7rem 1.2rem; border-radius: .8rem; background: #f1f5f9; color: #475569; font-weight: 600; font-size: .85rem; }
 .btn-cerrar-modal:hover { background: #e2e8f0; }
 
-/* ==================== ETIQUETA IMPRIMIBLE INDIVIDUAL ==================== */
-.etiqueta-imprimir { display: none; }
+/* ==================== BOTÓN "ETIQUETA" EN CADA CREDENCIAL QR ==================== */
 .qr-print-btn { margin-top: .4rem; width: 100%; font-size: .68rem; font-weight: 700; color: #dc2626; padding: .3rem; border-radius: .4rem; display: flex; align-items: center; justify-content: center; gap: .25rem; }
 .qr-print-btn:hover { background: #fef2f2; }
-
-body.imprimiendo-etiqueta * { visibility: hidden; }
-body.imprimiendo-etiqueta .etiqueta-imprimir,
-body.imprimiendo-etiqueta .etiqueta-imprimir * { visibility: visible; }
-body.imprimiendo-etiqueta .etiqueta-imprimir {
-  display: flex !important; flex-direction: column; align-items: center; justify-content: center;
-  position: fixed; top: 0; left: 0; width: 50mm; height: 30mm; padding: 2mm; gap: 1mm;
-  border: 0.3mm solid #000;
-}
-body.imprimiendo-etiqueta .etiqueta-imprimir p { font-family: 'Space Grotesk', monospace; font-size: 8pt; font-weight: 700; margin: 0; }
 
 /* ==================== ACCIONES EN TABLAS (editar / eliminar) ==================== */
 .tabla-accion-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: .55rem; color: #475569; border: 1px solid #e2e8f0; margin-left: .3rem; transition: all .15s ease; }
 .tabla-accion-btn:hover { background: #f1f5f9; color: #0f172a; border-color: #cbd5e1; }
 .tabla-accion-danger:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
 .rol-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .6rem; border-radius: 999px; font-size: .7rem; font-weight: 700; background: #f1f5f9; color: #475569; }
-body.imprimiendo-etiqueta .etiqueta-imprimir .qr-svg-contenedor svg { width: 20mm; height: 20mm; }

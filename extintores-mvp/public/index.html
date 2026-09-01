@@ -378,8 +378,8 @@
                     <i id="admin-foto-placeholder" data-lucide="image-plus" class="w-5 h-5 text-slate-300"></i>
                   </div>
                   <label class="foto-upload-btn">
-                    <i data-lucide="upload" class="w-4 h-4"></i> Elegir foto
-                    <input id="admin-foto-input" type="file" accept="image/*" capture="environment" class="hidden" />
+                    <i data-lucide="upload" class="w-4 h-4"></i> Tomar o elegir foto
+                    <input id="admin-foto-input" type="file" accept="image/*" class="hidden" />
                   </label>
                 </div>
               </div>
@@ -563,11 +563,10 @@
     </div>
   </div>
 
-  <!-- Plantilla oculta usada solo para imprimir una etiqueta individual -->
-  <div id="etiqueta-imprimir" class="etiqueta-imprimir">
-    <div id="etiqueta-qr-contenedor" class="qr-svg-contenedor"></div>
-    <p id="etiqueta-codigo"></p>
-  </div>
+  <!-- Área de impresión: JS la rellena con las etiquetas QR justo antes de
+       imprimir (una o todas). Es hija directa de <body> para poder ocultar
+       todo lo demás de forma fiable con @media print. -->
+  <div id="area-impresion" class="area-impresion"></div>
 
   <div id="toast-container" class="toast-container"></div>
 

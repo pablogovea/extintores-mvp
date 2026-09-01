@@ -717,23 +717,56 @@ async function renderCredencialesQR() {
     refrescarIconos();
   } catch (e) { grid.innerHTML = '<p class="text-slate-400 text-sm">No se pudo cargar el inventario.</p>'; }
 }
-document.getElementById('btn-imprimir-qr').addEventListener('click', () => {
-  document.body.classList.add('imprimiendo-grid');
-  window.print();
+// Construye el HTML de una etiqueta (QR + código) para el área de impresión.
+function construirEtiquetaHTML(codigo, svg) {
+  return `<div class="etiqueta-print">
+    <div class="qr-svg-contenedor">${svg || ''}</div>
+    <p class="etiqueta-print-codigo">${codigo}</p>
+  </div>`;
+}
+
+function lanzarImpresion(htmlInterno) {
+  const area = document.getElementById('area-impresion');
+  area.innerHTML = htmlInterno;
+  document.body.classList.add('modo-impresion');
+  // dar un tick para que el navegador pinte los SVG antes de abrir el diálogo
+  setTimeout(() => window.print(), 60);
+}
+
+// Imprimir TODAS las etiquetas del inventario.
+document.getElementById('btn-imprimir-qr').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-imprimir-qr');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/extintores');
+    const extintores = await res.json();
+    if (!res.ok || !extintores.length) {
+      mostrarToast({ tipo: 'warning', titulo: 'No hay equipos para imprimir' });
+      return;
+    }
+    const etiquetas = [];
+    for (const e of extintores) {
+      const svg = await obtenerQrSvg(e.codigo, e.qr_svg);
+      etiquetas.push(construirEtiquetaHTML(e.codigo, svg));
+    }
+    lanzarImpresion(`<div class="etiquetas-grid">${etiquetas.join('')}</div>`);
+  } catch (err) {
+    mostrarToast({ tipo: 'error', titulo: 'No se pudieron preparar las etiquetas' });
+  } finally {
+    btn.disabled = false;
+  }
 });
 
+// Imprimir una sola etiqueta.
 async function imprimirEtiqueta(codigo) {
-  const contenedor = document.getElementById('etiqueta-qr-contenedor');
-  document.getElementById('etiqueta-codigo').textContent = codigo;
   const svg = await obtenerQrSvg(codigo);
   if (!svg) { mostrarToast({ tipo: 'error', titulo: 'No se pudo generar el QR de esta etiqueta' }); return; }
-  contenedor.innerHTML = svg;
-  document.body.classList.add('imprimiendo-etiqueta');
-  window.print();
+  lanzarImpresion(`<div class="etiquetas-grid una-etiqueta">${construirEtiquetaHTML(codigo, svg)}</div>`);
 }
+
 window.addEventListener('afterprint', () => {
-  document.body.classList.remove('imprimiendo-grid');
-  document.body.classList.remove('imprimiendo-etiqueta');
+  document.body.classList.remove('modo-impresion');
+  document.getElementById('area-impresion').innerHTML = '';
 });
 
 // ==================== FOTOS DE EQUIPOS (subir / reemplazar) ====================
@@ -757,7 +790,7 @@ async function renderFotosLista() {
         </div>
         <label class="foto-upload-btn">
           <i data-lucide="upload" class="w-3.5 h-3.5"></i> ${e.tiene_foto ? 'Cambiar' : 'Subir'}
-          <input type="file" accept="image/*" capture="environment" class="hidden" data-codigo="${e.codigo}" />
+          <input type="file" accept="image/*" class="hidden" data-codigo="${e.codigo}" />
         </label>
       `;
       contenedor.appendChild(fila);
