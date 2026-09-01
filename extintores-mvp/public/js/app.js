@@ -302,13 +302,44 @@ async function cargarDashboard() {
     animarContador('kpi-mantenimiento', stats.mantenimiento);
     renderChartEstados(stats);
     renderChartUbicaciones(stats.porUbicacion);
-    renderTabla(extintores);
+    renderIndicadores(stats, extintores);
+    // Si la ubicación seleccionada ya no existe, se limpia la selección.
+    if (filtroUbicacion && !extintores.some(e => e.ubicacion_nombre === filtroUbicacion)) filtroUbicacion = null;
+    aplicarFiltroTabla();
+    if (filtroUbicacion) renderDetalleUbicacion(filtroUbicacion);
     tablaLoading.classList.add('hidden');
   } catch (err) {
     tablaLoading.textContent = navigator.onLine ? 'No se pudo cargar la información. Verifica que el servidor esté corriendo.' : 'Sin conexión. Mostrando datos guardados localmente si existen.';
     const cache = JSON.parse(localStorage.getItem(CLAVE_CACHE_INVENTARIO) || 'null');
-    if (cache) { inventarioCompleto = cache; renderTabla(cache); tablaLoading.classList.add('hidden'); }
+    if (cache) { inventarioCompleto = cache; aplicarFiltroTabla(); tablaLoading.classList.add('hidden'); }
   }
+}
+
+// ==================== INDICADORES DE GESTIÓN ====================
+function renderIndicadores(stats, extintores) {
+  // Cumplimiento operativo = % de equipos en estado "Operativo"
+  const pct = stats.total ? Math.round((stats.operativos / stats.total) * 100) : 0;
+  document.getElementById('ind-cumplimiento').textContent = pct + '%';
+  document.getElementById('ind-cumplimiento-sub').textContent = `${stats.operativos} de ${stats.total} equipos`;
+  const barra = document.getElementById('ind-cumplimiento-barra');
+  barra.style.width = pct + '%';
+  barra.className = 'barra-progreso-fill ' + (pct >= 85 ? 'barra-ok' : pct >= 60 ? 'barra-media' : 'barra-baja');
+
+  // Inspecciones
+  const totalIns = stats.totalInspecciones || 0;
+  const aprob = stats.inspeccionesAprobadas || 0;
+  const rech = Math.max(totalIns - aprob, 0);
+  const tasa = totalIns ? Math.round((aprob / totalIns) * 100) : 0;
+  document.getElementById('ind-insp-total').textContent = totalIns;
+  document.getElementById('ind-insp-aprob').textContent = aprob;
+  document.getElementById('ind-insp-rech').textContent = rech;
+  document.getElementById('ind-insp-tasa').textContent = tasa + '% aprobación';
+
+  // Ventana de vencimiento (equipos aún vigentes que vencen pronto)
+  const enRango = (min, max) => extintores.filter(e => e.dias_restantes > min && e.dias_restantes <= max).length;
+  document.getElementById('ind-h30').textContent = extintores.filter(e => e.dias_restantes >= 0 && e.dias_restantes <= 30).length;
+  document.getElementById('ind-h60').textContent = enRango(30, 60);
+  document.getElementById('ind-h90').textContent = enRango(60, 90);
 }
 function renderChartEstados(stats) {
   const ctx = document.getElementById('chart-estados');
@@ -317,23 +348,190 @@ function renderChartEstados(stats) {
   chartEstados = new Chart(ctx, {
     type: 'doughnut',
     data: { labels: ['Operativos', 'Por Vencer', 'Vencidos', 'Mantenimiento'], datasets: [{ data, backgroundColor: ['#059669', '#d97706', '#dc2626', '#0284c7'], borderWidth: 0, hoverOffset: 8 }] },
-    options: { responsive: true, animation: { animateScale: true, duration: 700, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } },
+    options: { responsive: true, maintainAspectRatio: false, animation: { animateScale: true, duration: 700, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } },
   });
+}
+let ubicacionesChartLabels = [];
+function coloresBarrasUbicacion(labels) {
+  return labels.map(l => (l === filtroUbicacion ? '#0f172a' : '#dc2626'));
 }
 function renderChartUbicaciones(porUbicacion) {
   const ctx = document.getElementById('chart-ubicaciones');
   const labels = porUbicacion.map(u => u.ubicacion), data = porUbicacion.map(u => u.total);
-  if (chartUbicaciones) { chartUbicaciones.data.labels = labels; chartUbicaciones.data.datasets[0].data = data; chartUbicaciones.update(); return; }
+  ubicacionesChartLabels = labels;
+  if (chartUbicaciones) {
+    chartUbicaciones.data.labels = labels;
+    chartUbicaciones.data.datasets[0].data = data;
+    chartUbicaciones.data.datasets[0].backgroundColor = coloresBarrasUbicacion(labels);
+    chartUbicaciones.update();
+    return;
+  }
   chartUbicaciones = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Extintores', data, backgroundColor: '#dc2626', borderRadius: 6, maxBarThickness: 42 }] },
-    options: { responsive: true, animation: { duration: 700, easing: 'easeOutQuart' }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+    data: { labels, datasets: [{ label: 'Extintores', data, backgroundColor: coloresBarrasUbicacion(labels), borderRadius: 6, maxBarThickness: 42 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 700, easing: 'easeOutQuart' },
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+      onHover: (evt, els) => { if (evt.native && evt.native.target) evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      onClick: (evt, els) => {
+        if (!els.length) return;
+        const nombre = ubicacionesChartLabels[els[0].index];
+        seleccionarUbicacion(nombre === filtroUbicacion ? null : nombre);
+      },
+    },
   });
 }
+function pintarBarrasUbicacion() {
+  if (!chartUbicaciones) return;
+  chartUbicaciones.data.datasets[0].backgroundColor = coloresBarrasUbicacion(chartUbicaciones.data.labels);
+  chartUbicaciones.update('none');
+}
+
+// ==================== FILTROS DEL INVENTARIO (estado + ubicación + texto) ====================
+let filtroEstado = null;     // p. ej. 'Vencido'
+let filtroUbicacion = null;  // nombre de ubicación seleccionada en la gráfica
+
+function equiposFiltrados() {
+  const q = (document.getElementById('filtro-tabla').value || '').trim().toLowerCase();
+  return inventarioCompleto.filter(e => {
+    if (filtroEstado && e.estado !== filtroEstado) return false;
+    if (filtroUbicacion && e.ubicacion_nombre !== filtroUbicacion) return false;
+    if (q && !(
+      e.codigo.toLowerCase().includes(q) ||
+      (e.ubicacion_nombre || '').toLowerCase().includes(q) ||
+      (e.ubicacion_area || '').toLowerCase().includes(q)
+    )) return false;
+    return true;
+  });
+}
+
+function aplicarFiltroTabla() {
+  const lista = equiposFiltrados();
+  renderTabla(lista);
+  const cont = document.getElementById('tabla-contador');
+  cont.textContent = lista.length === inventarioCompleto.length
+    ? `${inventarioCompleto.length} equipos`
+    : `${lista.length} de ${inventarioCompleto.length}`;
+  renderChipsFiltro();
+  pintarBarrasUbicacion();
+}
+
+function renderChipsFiltro() {
+  const cont = document.getElementById('filtros-activos');
+  const chips = [];
+  if (filtroEstado) chips.push(`<button class="chip-filtro" data-quitar="estado"><span class="badge ${badgeClase(filtroEstado)}">${filtroEstado}</span> <i data-lucide="x" class="w-3 h-3"></i></button>`);
+  if (filtroUbicacion) chips.push(`<button class="chip-filtro" data-quitar="ubicacion"><i data-lucide="map-pin" class="w-3 h-3"></i> ${filtroUbicacion} <i data-lucide="x" class="w-3 h-3"></i></button>`);
+  if (!chips.length) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+  cont.classList.remove('hidden');
+  cont.innerHTML = `<span class="text-xs text-slate-400 font-semibold">Filtros:</span> ${chips.join('')} <button class="chip-filtro chip-filtro-limpiar" data-quitar="todo">Limpiar todo</button>`;
+  cont.querySelectorAll('[data-quitar]').forEach(b => b.addEventListener('click', () => {
+    const q = b.dataset.quitar;
+    if (q === 'estado' || q === 'todo') { filtroEstado = null; document.querySelectorAll('.kpi-clickable').forEach(k => k.classList.remove('kpi-activo')); }
+    if (q === 'ubicacion' || q === 'todo') seleccionarUbicacion(null);
+    if (q === 'todo') document.getElementById('filtro-tabla').value = '';
+    aplicarFiltroTabla();
+  }));
+  refrescarIconos();
+}
+
+function filtrarPorEstado(estado) {
+  filtroEstado = (filtroEstado === estado || !estado) ? null : estado;
+  document.querySelectorAll('.kpi-clickable').forEach(k => {
+    k.classList.toggle('kpi-activo', !!filtroEstado && k.dataset.filtroEstado === filtroEstado);
+  });
+  aplicarFiltroTabla();
+}
+
+document.querySelectorAll('.kpi-clickable').forEach(card => {
+  card.addEventListener('click', () => { sonidos.info(); filtrarPorEstado(card.dataset.filtroEstado || null); });
+});
+
+// ==================== DESGLOSE POR ÁREA DE UNA UBICACIÓN ====================
+function contarEstados(lista) {
+  const c = { 'Operativo': 0, 'Por Vencer': 0, 'Vencido': 0, 'Mantenimiento': 0 };
+  lista.forEach(e => { if (c[e.estado] !== undefined) c[e.estado]++; });
+  return c;
+}
+
+function seleccionarUbicacion(nombre) {
+  filtroUbicacion = nombre || null;
+  const panel = document.getElementById('panel-ubicacion-detalle');
+  if (filtroUbicacion) {
+    renderDetalleUbicacion(filtroUbicacion);
+    panel.classList.remove('hidden');
+  } else {
+    panel.classList.add('hidden');
+  }
+  aplicarFiltroTabla();
+  if (filtroUbicacion) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderDetalleUbicacion(nombre) {
+  const equipos = inventarioCompleto.filter(e => e.ubicacion_nombre === nombre);
+  document.getElementById('detalle-ubicacion-nombre').textContent = `${nombre} · ${equipos.length} equipo(s)`;
+
+  const porArea = {};
+  equipos.forEach(e => { const a = e.ubicacion_area || 'Sin área asignada'; (porArea[a] = porArea[a] || []).push(e); });
+
+  const seg = (n, total, clase) => n ? `<span class="area-barra-seg ${clase}" style="flex:${n}" title="${n}"></span>` : '';
+  const dot = (n, clase, txt) => n ? `<span class="area-dot-item"><i class="area-dot ${clase}"></i>${n} ${txt}</span>` : '';
+
+  const cont = document.getElementById('detalle-ubicacion-areas');
+  cont.innerHTML = Object.entries(porArea)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([area, list]) => {
+      const c = contarEstados(list);
+      const pisos = [...new Set(list.map(e => e.ubicacion_piso).filter(Boolean))].sort();
+      return `
+        <div class="area-card">
+          <div class="area-card-head">
+            <p class="area-card-nombre">${area}</p>
+            <span class="area-card-total">${list.length}</span>
+          </div>
+          ${pisos.length ? `<p class="area-card-pisos"><i data-lucide="layers" class="w-3 h-3"></i> ${pisos.join(' · ')}</p>` : ''}
+          <div class="area-barra">
+            ${seg(c['Operativo'], list.length, 'seg-op')}
+            ${seg(c['Por Vencer'], list.length, 'seg-pv')}
+            ${seg(c['Vencido'], list.length, 'seg-ve')}
+            ${seg(c['Mantenimiento'], list.length, 'seg-mt')}
+          </div>
+          <div class="area-leyenda">
+            ${dot(c['Operativo'], 'seg-op', 'op.')}
+            ${dot(c['Por Vencer'], 'seg-pv', 'x vencer')}
+            ${dot(c['Vencido'], 'seg-ve', 'venc.')}
+            ${dot(c['Mantenimiento'], 'seg-mt', 'mant.')}
+          </div>
+          <div class="area-equipos">
+            ${list.sort((a, b) => a.codigo.localeCompare(b.codigo)).map(e => `
+              <button class="area-equipo" data-codigo="${e.codigo}" title="Ver ficha de ${e.codigo}">
+                <span class="font-mono font-semibold text-slate-700">${e.codigo}</span>
+                <span class="badge ${badgeClase(e.estado)}">${e.estado}</span>
+              </button>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+
+  cont.querySelectorAll('.area-equipo').forEach(b => b.addEventListener('click', () => {
+    mostrarVista('inspeccion');
+    inputCodigo.value = b.dataset.codigo;
+    buscarExtintor(b.dataset.codigo);
+  }));
+  refrescarIconos();
+}
+
+document.getElementById('btn-cerrar-detalle').addEventListener('click', () => seleccionarUbicacion(null));
 function renderTabla(extintores) {
   const tbody = document.getElementById('tabla-extintores');
   const gestor = puedeGestionarInventario();
   const admin = esAdministrador();
+  const colspan = gestor ? 6 : 5;
+  if (!extintores.length) {
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="px-3 sm:px-5 py-8 text-center text-slate-400 text-sm">Ningún equipo coincide con el filtro.</td></tr>`;
+    return;
+  }
   tbody.innerHTML = extintores.map((e, i) => `
     <tr class="animate-fade-up" style="animation-delay:${Math.min(i * 0.03, 0.4)}s">
       <td class="px-3 sm:px-5 py-3 font-mono font-semibold text-slate-700">${e.codigo}</td>
@@ -352,10 +550,7 @@ function renderTabla(extintores) {
   refrescarIconos();
 }
 document.getElementById('refresh-dashboard').addEventListener('click', () => { sonidos.info(); cargarDashboard(); cargarNotificaciones(); });
-document.getElementById('filtro-tabla').addEventListener('input', (e) => {
-  const q = e.target.value.trim().toLowerCase();
-  renderTabla(inventarioCompleto.filter(x => x.codigo.toLowerCase().includes(q) || x.ubicacion_nombre.toLowerCase().includes(q)));
-});
+document.getElementById('filtro-tabla').addEventListener('input', () => aplicarFiltroTabla());
 
 // ==================== EXPORTAR PDF ====================
 document.getElementById('btn-exportar-pdf').addEventListener('click', () => {

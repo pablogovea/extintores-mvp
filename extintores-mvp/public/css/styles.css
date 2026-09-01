@@ -108,6 +108,56 @@ svg[data-lucide] { width: 1em; height: 1em; }
 .kpi-vencido .kpi-value { color: #dc2626; }
 .kpi-mantenimiento .kpi-value { color: #0284c7; }
 
+/* ==================== CONTENEDOR DE GRÁFICAS ==================== */
+.chart-box { position: relative; height: 260px; width: 100%; }
+@media (max-width: 639px) { .chart-box { height: 220px; } }
+
+/* ==================== KPI CLICABLES (filtro por estado) ==================== */
+.kpi-clickable { cursor: pointer; }
+.kpi-clickable:active { transform: translateY(-1px); }
+.kpi-activo { outline: 2px solid #0f172a; outline-offset: 2px; }
+
+/* ==================== INDICADORES DE GESTIÓN ==================== */
+.mini-panel { display: flex; flex-direction: column; gap: .35rem; }
+.mini-panel-title { display: flex; align-items: center; gap: .4rem; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #94a3b8; }
+.mini-panel-title [data-lucide] { width: 14px; height: 14px; }
+.mini-panel-value { font-size: 1.8rem; font-weight: 800; line-height: 1; color: #0f172a; font-family: 'Space Grotesk', monospace; }
+.barra-progreso { height: 8px; border-radius: 999px; background: #f1f5f9; overflow: hidden; margin-top: .3rem; }
+.barra-progreso-fill { height: 100%; border-radius: 999px; width: 0; transition: width .6s cubic-bezier(.22,1,.36,1); }
+.barra-ok { background: #059669; }
+.barra-media { background: #d97706; }
+.barra-baja { background: #dc2626; }
+.horizonte { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; text-align: center; margin-top: .2rem; }
+.horizonte-num { font-size: 1.4rem; font-weight: 800; font-family: 'Space Grotesk', monospace; line-height: 1; }
+.horizonte-lbl { font-size: .66rem; color: #94a3b8; font-weight: 600; margin-top: .2rem; }
+
+/* ==================== CHIPS DE FILTRO ACTIVO ==================== */
+.chip-filtro { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .55rem; border-radius: 999px; font-size: .74rem; font-weight: 600; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; transition: all .15s ease; }
+.chip-filtro:hover { background: #e2e8f0; color: #0f172a; }
+.chip-filtro-limpiar { background: transparent; border-color: transparent; color: #dc2626; text-decoration: underline; }
+.chip-filtro-limpiar:hover { background: #fef2f2; }
+
+/* ==================== DESGLOSE POR ÁREA (drill-down de ubicación) ==================== */
+.areas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .8rem; }
+.area-card { border: 1px solid #e2e8f0; border-radius: .9rem; padding: .8rem .9rem; background: #fafafa; }
+.area-card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.area-card-nombre { font-weight: 700; font-size: .88rem; color: #1e293b; }
+.area-card-total { flex-shrink: 0; font-family: 'Space Grotesk', monospace; font-weight: 800; font-size: .95rem; color: #0f172a; background: #fff; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .05rem .5rem; }
+.area-card-pisos { display: flex; align-items: center; gap: .3rem; font-size: .7rem; color: #94a3b8; margin-top: .25rem; }
+.area-barra { display: flex; height: 8px; border-radius: 999px; overflow: hidden; margin-top: .55rem; background: #f1f5f9; }
+.area-barra-seg { display: block; }
+.seg-op { background: #059669; }
+.seg-pv { background: #d97706; }
+.seg-ve { background: #dc2626; }
+.seg-mt { background: #0284c7; }
+.area-leyenda { display: flex; flex-wrap: wrap; gap: .5rem .7rem; margin-top: .45rem; }
+.area-dot-item { display: inline-flex; align-items: center; gap: .3rem; font-size: .7rem; color: #64748b; font-weight: 600; }
+.area-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+.area-equipos { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .7rem; }
+.area-equipo { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .5rem; border-radius: .55rem; background: #fff; border: 1px solid #e2e8f0; font-size: .72rem; transition: all .15s ease; }
+.area-equipo:hover { border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,.06); transform: translateY(-1px); }
+.area-equipo .badge { padding: .12rem .45rem; font-size: .6rem; }
+
 /* ==================== PANELES ==================== */
 .panel-card { background: white; border-radius: 1.25rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,.05); padding: 1.1rem 1.25rem; }
 .panel-dashed { border-style: dashed; border-width: 2px; border-color: #cbd5e1; padding: 2.5rem 1.25rem; }

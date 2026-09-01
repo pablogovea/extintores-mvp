@@ -119,53 +119,102 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-4 mb-5 sm:mb-6">
-          <div class="kpi-card kpi-total animate-fade-up" style="animation-delay:.02s">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-4 mb-3 sm:mb-4">
+          <div class="kpi-card kpi-total kpi-clickable animate-fade-up" data-filtro-estado="" style="animation-delay:.02s">
             <div class="kpi-icon"><i data-lucide="package"></i></div>
             <p class="kpi-label">Total equipos</p>
             <p id="kpi-total" class="kpi-value">–</p>
           </div>
-          <div class="kpi-card kpi-operativo animate-fade-up" style="animation-delay:.06s">
+          <div class="kpi-card kpi-operativo kpi-clickable animate-fade-up" data-filtro-estado="Operativo" style="animation-delay:.06s">
             <div class="kpi-icon"><i data-lucide="shield-check"></i></div>
             <p class="kpi-label">Operativos</p>
             <p id="kpi-operativos" class="kpi-value">–</p>
           </div>
-          <div class="kpi-card kpi-por-vencer animate-fade-up" style="animation-delay:.10s">
+          <div class="kpi-card kpi-por-vencer kpi-clickable animate-fade-up" data-filtro-estado="Por Vencer" style="animation-delay:.10s">
             <div class="kpi-icon"><i data-lucide="clock-alert"></i></div>
             <p class="kpi-label">Por vencer</p>
             <p id="kpi-por-vencer" class="kpi-value">–</p>
           </div>
-          <div class="kpi-card kpi-vencido animate-fade-up" style="animation-delay:.14s">
+          <div class="kpi-card kpi-vencido kpi-clickable animate-fade-up" data-filtro-estado="Vencido" style="animation-delay:.14s">
             <div class="kpi-icon"><i data-lucide="octagon-x"></i></div>
             <p class="kpi-label">Vencidos</p>
             <p id="kpi-vencidos" class="kpi-value">–</p>
           </div>
-          <div class="kpi-card kpi-mantenimiento animate-fade-up" style="animation-delay:.18s">
+          <div class="kpi-card kpi-mantenimiento kpi-clickable animate-fade-up" data-filtro-estado="Mantenimiento" style="animation-delay:.18s">
             <div class="kpi-icon"><i data-lucide="wrench"></i></div>
             <p class="kpi-label">Mantenimiento</p>
             <p id="kpi-mantenimiento" class="kpi-value">–</p>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-5 sm:mb-6">
+        <p class="text-[11px] text-slate-400 mb-4 sm:mb-6 flex items-center gap-1.5"><i data-lucide="mouse-pointer-click" class="w-3 h-3"></i> Haz clic en una tarjeta para filtrar el inventario por ese estado.</p>
+
+        <!-- Indicadores de gestión -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 mb-5 sm:mb-6">
+          <div class="panel-card mini-panel animate-fade-up" style="animation-delay:.20s">
+            <h3 class="mini-panel-title"><i data-lucide="shield-check" class="w-4 h-4"></i> Cumplimiento operativo</h3>
+            <div class="flex items-end gap-2">
+              <p id="ind-cumplimiento" class="mini-panel-value">–%</p>
+              <p id="ind-cumplimiento-sub" class="text-xs text-slate-400 mb-1"></p>
+            </div>
+            <div class="barra-progreso"><div id="ind-cumplimiento-barra" class="barra-progreso-fill"></div></div>
+          </div>
+
+          <div class="panel-card mini-panel animate-fade-up" style="animation-delay:.24s">
+            <h3 class="mini-panel-title"><i data-lucide="clipboard-check" class="w-4 h-4"></i> Inspecciones registradas</h3>
+            <div class="flex items-end gap-2">
+              <p id="ind-insp-total" class="mini-panel-value">–</p>
+              <p id="ind-insp-tasa" class="text-xs font-semibold text-emerald-600 mb-1">–% aprobación</p>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">
+              <span id="ind-insp-aprob" class="font-semibold text-emerald-600">–</span> aprobadas ·
+              <span id="ind-insp-rech" class="font-semibold text-red-600">–</span> rechazadas
+            </p>
+          </div>
+
+          <div class="panel-card mini-panel animate-fade-up" style="animation-delay:.28s">
+            <h3 class="mini-panel-title"><i data-lucide="calendar-clock" class="w-4 h-4"></i> Ventana de vencimiento</h3>
+            <div class="horizonte">
+              <div><p id="ind-h30" class="horizonte-num text-amber-600">–</p><p class="horizonte-lbl">≤ 30 días</p></div>
+              <div><p id="ind-h60" class="horizonte-num text-slate-600">–</p><p class="horizonte-lbl">31–60 días</p></div>
+              <div><p id="ind-h90" class="horizonte-num text-slate-600">–</p><p class="horizonte-lbl">61–90 días</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-5">
           <div class="lg:col-span-1 panel-card animate-fade-up" style="animation-delay:.22s">
             <h3 class="panel-title"><i data-lucide="pie-chart" class="w-4 h-4"></i> Distribución por estado</h3>
-            <canvas id="chart-estados" height="220"></canvas>
+            <div class="chart-box"><canvas id="chart-estados"></canvas></div>
           </div>
           <div class="lg:col-span-2 panel-card animate-fade-up" style="animation-delay:.26s">
-            <h3 class="panel-title"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Equipos por ubicación</h3>
-            <canvas id="chart-ubicaciones" height="220"></canvas>
+            <h3 class="panel-title mb-0"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Equipos por ubicación</h3>
+            <p class="text-[11px] text-slate-400 mb-2 flex items-center gap-1.5"><i data-lucide="mouse-pointer-click" class="w-3 h-3"></i> Haz clic en una barra para ver el desglose por área de esa ubicación.</p>
+            <div class="chart-box"><canvas id="chart-ubicaciones"></canvas></div>
           </div>
+        </div>
+
+        <!-- Desglose por área de la ubicación seleccionada -->
+        <div id="panel-ubicacion-detalle" class="panel-card animate-fade-up hidden mb-5 sm:mb-6">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <h3 class="panel-title mb-0"><i data-lucide="map-pin" class="w-4 h-4"></i> <span id="detalle-ubicacion-nombre"></span></h3>
+            <button id="btn-cerrar-detalle" class="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1"><i data-lucide="x" class="w-3.5 h-3.5"></i> Cerrar desglose</button>
+          </div>
+          <div id="detalle-ubicacion-areas" class="areas-grid"></div>
         </div>
 
         <div class="panel-card p-0 overflow-hidden animate-fade-up" style="animation-delay:.30s">
           <div class="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
-            <h3 class="panel-title mb-0"><i data-lucide="list-checks" class="w-4 h-4"></i> Inventario de extintores</h3>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 class="panel-title mb-0"><i data-lucide="list-checks" class="w-4 h-4"></i> Inventario de extintores</h3>
+              <span id="tabla-contador" class="text-xs text-slate-400"></span>
+            </div>
             <div class="relative w-full sm:w-auto">
               <i data-lucide="search" class="filtro-icon"></i>
-              <input id="filtro-tabla" type="text" placeholder="Filtrar por código o ubicación..." class="filtro-input w-full sm:w-64" />
+              <input id="filtro-tabla" type="text" placeholder="Filtrar por código, ubicación o área..." class="filtro-input w-full sm:w-72" />
             </div>
           </div>
+          <div id="filtros-activos" class="hidden px-3.5 sm:px-5 py-2 border-b border-slate-100 flex items-center gap-2 flex-wrap"></div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
